@@ -5,16 +5,8 @@ import numpy as np
 
 N = 100    # Number of players (NODES)
 M = 4      # Number of edges to attach from a new node to existing nodes
-G = 5000   # Number of generations (rounds)
-
-"""
-TODO:
-- Implement strategy update rules (e.g., imitation, mutation)
-- Make simulation for only one type of player (A, B, or C) and mixed types
-- Make histogram of p and q distributions during the simulation
-
-
-"""
+G = 50000   # Number of generations (rounds)
+MUT_RATE = 0.00  # mutation probability
 
 """
 Class Player:
@@ -59,6 +51,20 @@ class Player: # each Player is a node of the graph
             self.p = p
             self.q = q
 
+    def mutate(self, rate=MUT_RATE):
+        """Small random mutation in strategy"""
+        if random.random() < rate:
+            if self.type == "C":
+                self.p = min(max(self.p + np.random.normal(0, 0.05), 0), 1)
+                self.q = min(max(self.q + np.random.normal(0, 0.05), 0), 1)
+            elif self.type == "A":
+                self.q = min(max(self.q + np.random.normal(0, 0.05), 0), 1)
+                self.p = self.q
+            elif self.type == "B":
+                self.q = min(max(self.q + np.random.normal(0, 0.05), 0), 1)
+                self.p = 1 - self.q
+
+
 """
 Function run_round:
     Simulates one round of the Ultimatum Game on the given graph with the given population
@@ -80,9 +86,6 @@ def run_round(graph, population):
 """
 Function evolve_strategies_replicator:
     Implements the replicator dynamics update rule as in Sinatra et al. (2009).
-    Each player i compares with a random neighbor j.
-    If Pi_j > Pi_i, player i copies j's strategy with probability:
-        P_ij = (Pi_j - Pi_i) / (2 * max(k_i, k_j))
 """
 def evolve_strategies_replicator(graph, population):
     new_strategies = {}
@@ -108,30 +111,16 @@ def evolve_strategies_replicator(graph, population):
 
     for i, (p, q) in new_strategies.items():
         population[i].set_strategy(p, q)
+        population[i].mutate()  # <-- mutation applied after copying
+
 
 # -------------------------------
 # Graph and population
 # -------------------------------
 ba = nx.barabasi_albert_graph(N, M)  # scale-free network 
-#ba = nx.erdos_renyi_graph(N, p=0.1) # Aleatória
 
 # Option 1: all players of type C
 population = {node: Player(node, player_type="B") for node in ba.nodes()}
-
-# Option 2: mix of types A, B, C
-# population = {}
-# type_counts = {"A": 0, "B": 0, "C": 0}  # initialize counters
-
-# for node in ba.nodes():
-#     t = random.choice(["A", "B", "C"])  # assign a random type
-#     type_counts[t] += 1  # count each type
-#     population[node] = Player(node, player_type=t)
-
-# print(f"Population distribution:")
-# print(f"Type A (Empathy): {type_counts['A']} players ({type_counts['A']/N*100:.1f}%)")
-# print(f"Type B (Pragmatic): {type_counts['B']} players ({type_counts['B']/N*100:.1f}%)")
-# print(f"Type C (Independent): {type_counts['C']} players ({type_counts['C']/N*100:.1f}%)")
-# print(f"Total: {sum(type_counts.values())} players\n")
 
 # -------------------------------
 # Simulation
@@ -141,16 +130,28 @@ history = []
 for gen in range(G):
     run_round(ba, population)
 
-    # Only evolve every 50 generations
-    if gen % 2 == 0 and gen > 0:
+    # Only evolve every 2 generations
+    if gen % 25 == 0 and gen > 0:
         evolve_strategies_replicator(ba, population)
 
     if gen % 10 == 0:
         avg_p = np.mean([p.p for p in population.values()])
         avg_q = np.mean([p.q for p in population.values()])
         history.append((gen, avg_p, avg_q))
-        if gen % 500 == 0:
+
+        if gen % 10000 == 0:
             print(f"Generation {gen}: Avg Offer (p) = {avg_p:.3f}, Avg Threshold (q) = {avg_q:.3f}")
+
+            # --- Histogram of p and q distributions ---
+            ps = [pl.p for pl in population.values()]
+            qs = [pl.q for pl in population.values()]
+            plt.hist(ps, bins=20, alpha=0.5, label="Offers (p)")
+            plt.hist(qs, bins=20, alpha=0.5, label="Thresholds (q)")
+            plt.xlabel("Value")
+            plt.ylabel("Frequency")
+            plt.legend()
+            plt.title(f"Strategy Distributions at Generation {gen}")
+            plt.show()
 
 
 # -------------------------------
