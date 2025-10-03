@@ -12,6 +12,8 @@ TODO:
 - Implement strategy update rules (e.g., imitation, mutation)
 - Make simulation for only one type of player (A, B, or C) and mixed types
 - Make histogram of p and q distributions during the simulation
+
+
 """
 
 """
@@ -29,12 +31,12 @@ class Player: # each Player is a node of the graph
         self.type = player_type
 
         if self.type == "A":        # Empathy player (p = q)
-            self.p = random.random()
-            self.q = self.p
+            self.q = random.random()
+            self.p = self.q
 
         elif self.type == "B":      # Pragmatic player (p = 1 - q)
-            self.p = random.random()
-            self.q = 1 - self.p
+            self.q = random.random()
+            self.p = 1 - self.q
 
         elif self.type == "C":      # Independent player (p, q independent)
             self.p = random.random()
@@ -48,11 +50,11 @@ class Player: # each Player is a node of the graph
     def set_strategy(self, p, q):
         """Copy or learn strategy, respecting the player's type"""
         if self.type == "A":
-            self.p = p
-            self.q = p
+            self.q = q
+            self.p = q
         elif self.type == "B":
-            self.p = p
-            self.q = 1 - p
+            self.q = q
+            self.p = 1 - q
         elif self.type == "C":
             self.p = p
             self.q = q
@@ -111,25 +113,25 @@ def evolve_strategies_replicator(graph, population):
 # Graph and population
 # -------------------------------
 ba = nx.barabasi_albert_graph(N, M)  # scale-free network 
+#ba = nx.erdos_renyi_graph(N, p=0.1) # Aleatória
 
 # Option 1: all players of type C
-# population = {node: Player(node, player_type="C") for node in ba.nodes()}
+population = {node: Player(node, player_type="B") for node in ba.nodes()}
 
 # Option 2: mix of types A, B, C
-population = {}
-type_counts = {"A": 0, "B": 0, "C": 0}  # initialize counters
+# population = {}
+# type_counts = {"A": 0, "B": 0, "C": 0}  # initialize counters
 
-for node in ba.nodes():
-    t = random.choice(["A", "B", "C"])  # assign a random type
-    type_counts[t] += 1  # count each type
-    population[node] = Player(node, player_type=t)
+# for node in ba.nodes():
+#     t = random.choice(["A", "B", "C"])  # assign a random type
+#     type_counts[t] += 1  # count each type
+#     population[node] = Player(node, player_type=t)
 
-# Print the counts
-print(f"Population distribution:")
-print(f"Type A (Empathy): {type_counts['A']} players ({type_counts['A']/N*100:.1f}%)")
-print(f"Type B (Pragmatic): {type_counts['B']} players ({type_counts['B']/N*100:.1f}%)")
-print(f"Type C (Independent): {type_counts['C']} players ({type_counts['C']/N*100:.1f}%)")
-print(f"Total: {sum(type_counts.values())} players\n")
+# print(f"Population distribution:")
+# print(f"Type A (Empathy): {type_counts['A']} players ({type_counts['A']/N*100:.1f}%)")
+# print(f"Type B (Pragmatic): {type_counts['B']} players ({type_counts['B']/N*100:.1f}%)")
+# print(f"Type C (Independent): {type_counts['C']} players ({type_counts['C']/N*100:.1f}%)")
+# print(f"Total: {sum(type_counts.values())} players\n")
 
 # -------------------------------
 # Simulation
@@ -138,14 +140,18 @@ history = []
 
 for gen in range(G):
     run_round(ba, population)
-    evolve_strategies_replicator(ba, population)  # <- replicator dynamics update
-    
+
+    # Only evolve every 50 generations
+    if gen % 2 == 0 and gen > 0:
+        evolve_strategies_replicator(ba, population)
+
     if gen % 10 == 0:
         avg_p = np.mean([p.p for p in population.values()])
         avg_q = np.mean([p.q for p in population.values()])
         history.append((gen, avg_p, avg_q))
         if gen % 500 == 0:
             print(f"Generation {gen}: Avg Offer (p) = {avg_p:.3f}, Avg Threshold (q) = {avg_q:.3f}")
+
 
 # -------------------------------
 # Plotting results
